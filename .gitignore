@@ -1,0 +1,40 @@
+# === Maven ===
+target/
+*.jar
+*.war
+*.zip
+*.tar.gz
+
+# === IDE ===
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.settings/
+.project
+.classpath
+.factorypath
+.springBeans
+
+# === OS ===
+*.log
+*.tmp
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# === Runtime data ===
+data/
+uploads/
+exports/
+
+# === Environment ===
+.env
+.env.local
+*.key
+
+# === Build ===
+!mvnw
+!mvnw.cmd
