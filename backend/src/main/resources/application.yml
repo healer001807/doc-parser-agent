@@ -1,0 +1,27 @@
+server:
+  servlet:
+    context-path: /api
+langchain4j:
+  deepseek-ai:
+    chat-model:
+      api-key: sk-5982dfb3f9d844c88e7a0ccc28d0e14c
+      base-url: https://api.deepseek.com
+      model-name: deepseek-v4-pro
+  open-ai:
+    chat-model:
+      api-key: sk-5982dfb3f9d844c88e7a0ccc28d0e14c
+      base-url: https://api.deepseek.com
+      model-name: deepseek-v4-pro
+spring:
+  datasource:
+    url: jdbc:h2:mem:docparser
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+jwt:
+  secret: dGVzdC1kb2NwYXJzZXItand0LXNlY3JldC0zMmJ5dGU=
+  expiration: 86400000
+#logging:
+#  level:
+#    com.example.docparser: DEBUG
