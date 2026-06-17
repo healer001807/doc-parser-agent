@@ -31,7 +31,7 @@ public class AiParserServiceImpl implements AiParserService {
     private final ObjectMapper objectMapper;
     private String systemPromptTemplate;
 
-    @Value("classpath:prompts/prompt.md")
+    @Value("classpath:prompts/system-prompt.txt")
     private Resource systemPromptResource;
 
     public AiParserServiceImpl(
@@ -45,8 +45,8 @@ public class AiParserServiceImpl implements AiParserService {
                 .baseUrl(baseUrl)
                 .modelName(modelName)
                 .temperature(0.1)
-                .maxTokens(4096)
-                .timeout(Duration.ofSeconds(120))
+                .maxTokens(16384)
+                .timeout(Duration.ofSeconds(300))
                 .build();
     }
 
@@ -75,8 +75,7 @@ public class AiParserServiceImpl implements AiParserService {
 
             PromptTemplate promptTemplate = PromptTemplate.from(systemPrompt);
             Map<String, Object> variables = new HashMap<>();
-            variables.put("documentContent", truncateText(documentText, 50000));
-            log.info("文档内容：{}",variables.get("documentContent"));
+            variables.put("documentContent", truncateText(documentText, 15000));
             Prompt prompt = promptTemplate.apply(variables);
 
             log.info("正在调用AI模型解析文档: {}, 文档类型: {}, 长度: {}字符",
@@ -91,8 +90,6 @@ public class AiParserServiceImpl implements AiParserService {
         } catch (Exception e) {
             log.error("AI解析失败: {}", e.getMessage(), e);
             return fallbackParse(documentText, fileName);
-           // throw new Exception("解析失败");
-
         }
     }
 
@@ -140,15 +137,45 @@ public class AiParserServiceImpl implements AiParserService {
             String jsonStr = extractJsonFromResponse(aiResponse);
 
             if (jsonStr != null) {
+                // 尝试直接解析
                 try {
-                    ParseResult result = objectMapper.readValue(jsonStr, ParseResult.class);
-                    if (result != null) {
-                        result.setRawParsedText(originalText);
-                        log.info("AI解析结果JSON解析成功");
-                        return result;
-                    }
+                    return tryParseJson(jsonStr, originalText);
                 } catch (JsonProcessingException e) {
-                    log.warn("AI返回的JSON格式有误，尝试修复: {}", e.getMessage());
+                    log.warn("JSON格式有误，尝试修复: {}", e.getMessage());
+                }
+
+                // 尝试修复后解析
+                String repaired = repairTruncatedJson(jsonStr);
+                if (repaired != null) {
+                    try {
+                        ParseResult result = tryParseJson(repaired, originalText);
+                        log.info("JSON修复成功");
+                        return result;
+                    } catch (JsonProcessingException e2) {
+                        log.warn("修复后仍无法解析: {}", e2.getMessage());
+                    }
+                }
+            }
+
+            // 最终尝试：暴力取第一个{到最后一个}
+            String fallback = extractJsonFallback(aiResponse);
+            if (fallback != null) {
+                try {
+                    ParseResult result = tryParseJson(fallback, originalText);
+                    log.info("暴力提取JSON成功");
+                    return result;
+                } catch (JsonProcessingException e) {
+                    log.warn("暴力提取JSON后解析失败: {}", e.getMessage());
+                    String repaired2 = repairTruncatedJson(fallback);
+                    if (repaired2 != null) {
+                        try {
+                            ParseResult result = tryParseJson(repaired2, originalText);
+                            log.info("暴力提取+修复JSON成功");
+                            return result;
+                        } catch (JsonProcessingException e2) {
+                            log.warn("暴力提取+修复后仍然失败: {}", e2.getMessage());
+                        }
+                    }
                 }
             }
 
@@ -161,23 +188,152 @@ public class AiParserServiceImpl implements AiParserService {
         }
     }
 
+    private ParseResult tryParseJson(String json, String originalText) throws JsonProcessingException {
+        ParseResult result = objectMapper.readValue(json, ParseResult.class);
+        if (result != null) {
+            result.setRawParsedText(originalText);
+        }
+        return result;
+    }
+
+    private String repairTruncatedJson(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        raw = raw.trim();
+        raw = raw.replaceAll("[.…]{2,}$", "").trim();
+
+        Deque<Character> stack = new ArrayDeque<>();
+        StringBuilder result = new StringBuilder();
+        boolean inString = false;
+        boolean escaped = false;
+        int lastValidEnd = 0;
+
+        for (int i = 0; i < raw.length(); i++) {
+            char c = raw.charAt(i);
+
+            if (escaped) {
+                result.append(c);
+                escaped = false;
+                continue;
+            }
+            if (c == '\\' && inString) {
+                result.append(c);
+                escaped = true;
+                continue;
+            }
+            if (c == '"') {
+                inString = !inString;
+                result.append(c);
+                if (!inString) {
+                    lastValidEnd = result.length();
+                }
+                continue;
+            }
+            if (!inString) {
+                if (c == '{') {
+                    stack.push('}');
+                    result.append(c);
+                } else if (c == '}') {
+                    if (!stack.isEmpty() && stack.peek() == '}') {
+                        stack.pop();
+                        result.append(c);
+                        lastValidEnd = result.length();
+                    } else {
+                        break;
+                    }
+                } else if (c == '[') {
+                    stack.push(']');
+                    result.append(c);
+                } else if (c == ']') {
+                    if (!stack.isEmpty() && stack.peek() == ']') {
+                        stack.pop();
+                        result.append(c);
+                        lastValidEnd = result.length();
+                    } else {
+                        break;
+                    }
+                } else if (c == ',' || c == ':') {
+                    result.append(c);
+                    lastValidEnd = result.length();
+                } else {
+                    result.append(c);
+                }
+            } else {
+                result.append(c);
+            }
+        }
+
+        if (inString) {
+            String s = result.substring(0, lastValidEnd);
+            result = new StringBuilder(s);
+        }
+
+        String repaired = result.toString().replaceAll("[,\\s]+$", "");
+
+        while (!stack.isEmpty()) {
+            repaired += stack.pop();
+        }
+
+        return repaired;
+    }
+
     private String extractJsonFromResponse(String response) {
         if (response == null) return null;
 
+        String trimmed = response.trim();
+
         Pattern codeBlockPattern = Pattern.compile("```(?:json)?\\s*([\\s\\S]*?)\\s*```", Pattern.MULTILINE);
-        Matcher codeBlockMatcher = codeBlockPattern.matcher(response);
+        Matcher codeBlockMatcher = codeBlockPattern.matcher(trimmed);
         if (codeBlockMatcher.find()) {
             return codeBlockMatcher.group(1).trim();
         }
 
-        int braceStart = response.indexOf('{');
-        if (braceStart >= 0) {
-            int braceEnd = response.lastIndexOf('}');
-            if (braceEnd > braceStart) {
-                return response.substring(braceStart, braceEnd + 1);
+        int braceStart = trimmed.indexOf('{');
+        if (braceStart < 0) {
+            log.warn("AI响应中未找到{，前200字符: {}", truncateText(trimmed, 200));
+            return null;
+        }
+
+        // 栈匹配法：从第一个{开始找匹配的}
+        Deque<Character> stack = new ArrayDeque<>();
+        boolean inStr = false;
+        boolean esc = false;
+        int braceEnd = -1;
+        for (int i = braceStart; i < trimmed.length(); i++) {
+            char c = trimmed.charAt(i);
+            if (esc) { esc = false; continue; }
+            if (c == '\\' && inStr) { esc = true; continue; }
+            if (c == '"') { inStr = !inStr; continue; }
+            if (inStr) continue;
+            if (c == '{') { stack.push('}'); }
+            else if (c == '[') { stack.push(']'); }
+            else if (c == '}') {
+                if (stack.isEmpty()) break;
+                if (stack.peek() == '}') { stack.pop(); if (stack.isEmpty()) { braceEnd = i; break; } }
+                else break;
+            }
+            else if (c == ']') {
+                if (stack.isEmpty()) break;
+                if (stack.peek() == ']') { stack.pop(); if (stack.isEmpty()) { braceEnd = i; break; } }
+                else break;
             }
         }
 
+        if (braceEnd > braceStart) {
+            return trimmed.substring(braceStart, braceEnd + 1);
+        }
+
+        // 栈匹配失败，日志前200字符帮助排查
+        log.warn("栈匹配JSON失败，响应前200字符: {}", truncateText(trimmed, 200));
+        return null;
+    }
+
+    private String extractJsonFallback(String response) {
+        if (response == null) return null;
+        int start = response.indexOf('{');
+        int end = response.lastIndexOf('}');
+        if (start >= 0 && end > start) {
+            return response.substring(start, end + 1);
+        }
         return null;
     }
 
@@ -187,13 +343,8 @@ public class AiParserServiceImpl implements AiParserService {
                         .apiNameCn("（AI解析失败，请手动填写）")
                         .apiNameEn("（AI解析失败，请手动填写）")
                         .build())
-                .requestHeaders(new ArrayList<>())
-                .requestBody(new ArrayList<>())
-                .responseCodes(Arrays.asList(
-                        createDefaultField("code", "状态码", "Integer", "无", "Y"),
-                        createDefaultField("message", "响应消息", "String", "无", "Y")
-                ))
-                .responseBody(Collections.singletonList(createDefaultDataField()))
+                .requestParams(new ArrayList<>())
+                .responseParams(new ArrayList<>())
                 .rawParsedText(originalText)
                 .build();
     }
@@ -201,7 +352,8 @@ public class AiParserServiceImpl implements AiParserService {
     private ParseResult fallbackParse(String documentText, String fileName) {
         log.info("使用降级方案解析文档: {}", fileName);
 
-        List<FieldDefinition> extractedFields = extractFieldsByRegex(documentText);
+        List<FieldDefinition> requestFields = extractFieldsByRegex(documentText, false);
+        List<FieldDefinition> responseFields = extractFieldsByRegex(documentText, true);
 
         return ParseResult.builder()
                 .interfaceInfo(InterfaceInfo.builder()
@@ -209,28 +361,22 @@ public class AiParserServiceImpl implements AiParserService {
                         .apiNameEn("（请手动填写）")
                         .dataImportMethod("无")
                         .apiCallFrequency("无")
+                        .callSystemName("无")
                         .build())
-                .requestHeaders(new ArrayList<>())
-                .requestBody(extractedFields)
-                .responseCodes(Arrays.asList(
-                        createDefaultField("code", "状态码", "Integer", "无", "Y"),
-                        createDefaultField("message", "响应消息", "String", "无", "Y")
-                ))
-                .responseBody(extractedFields.isEmpty()
-                        ? Collections.singletonList(createDefaultDataField())
-                        : Collections.singletonList(createDataFieldWithChildren(extractedFields)))
+                .requestParams(requestFields)
+                .responseParams(responseFields)
                 .rawParsedText(documentText)
                 .build();
     }
 
-    private List<FieldDefinition> extractFieldsByRegex(String text) {
+    private List<FieldDefinition> extractFieldsByRegex(String text, boolean isResponse) {
         List<FieldDefinition> fields = new ArrayList<>();
         if (text == null || text.isBlank()) return fields;
 
         Pattern fieldPattern = Pattern.compile(
                 "(?:字段|参数|field|param)\\s*[：:]?\\s*([\\w.]+)\\s*" +
-                        "(?:描述|说明|desc|description)\\s*[：:]?\\s*([^\\n,，。]*)" +
-                        "(?:类型|type)\\s*[：:]?\\s*(\\w+)",
+                "(?:描述|说明|desc|description)\\s*[：:]?\\s*([^\\n,，。]*)" +
+                "(?:类型|type)\\s*[：:]?\\s*(\\w+)",
                 Pattern.CASE_INSENSITIVE
         );
 
@@ -241,7 +387,7 @@ public class AiParserServiceImpl implements AiParserService {
             if (seen.add(name)) {
                 String desc = matcher.group(2).trim();
                 String type = matcher.group(3).trim();
-                fields.add(createDefaultField(name, desc, type, "无", "N"));
+                fields.add(createDefaultField(name, desc, type, "无", "无"));
             }
         }
 
@@ -259,34 +405,6 @@ public class AiParserServiceImpl implements AiParserService {
                 .fieldNameEn2(nameEn)
                 .externalFieldName("无")
                 .children(new ArrayList<>())
-                .build();
-    }
-
-    private FieldDefinition createDefaultDataField() {
-        return FieldDefinition.builder()
-                .fieldNameEn("data")
-                .fieldNameCn("数据体")
-                .fieldType("Object")
-                .fieldLength("无")
-                .required("Y")
-                .remark("无")
-                .fieldNameEn2("data")
-                .externalFieldName("无")
-                .children(new ArrayList<>())
-                .build();
-    }
-
-    private FieldDefinition createDataFieldWithChildren(List<FieldDefinition> children) {
-        return FieldDefinition.builder()
-                .fieldNameEn("data")
-                .fieldNameCn("数据体")
-                .fieldType("Object")
-                .fieldLength("无")
-                .required("Y")
-                .remark("无")
-                .fieldNameEn2("data")
-                .externalFieldName("无")
-                .children(children)
                 .build();
     }
 }

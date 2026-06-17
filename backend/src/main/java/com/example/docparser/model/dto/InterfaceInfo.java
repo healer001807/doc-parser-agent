@@ -15,6 +15,8 @@ public class InterfaceInfo {
     private String apiCallFrequency;
     private String externalVendorUrl;
     private String externalDataUrl;
+    private String callSystemName;
+    private String requestUrl;
     private String apiNameEn;
     private String apiUrl;
 }

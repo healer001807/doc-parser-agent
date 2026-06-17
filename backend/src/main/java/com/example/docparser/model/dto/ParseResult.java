@@ -12,9 +12,7 @@ import java.util.List;
 @AllArgsConstructor
 public class ParseResult {
     private InterfaceInfo interfaceInfo;
-    private List<FieldDefinition> requestHeaders;
-    private List<FieldDefinition> requestBody;
-    private List<FieldDefinition> responseCodes;
-    private List<FieldDefinition> responseBody;
+    private List<FieldDefinition> requestParams;
+    private List<FieldDefinition> responseParams;
     private String rawParsedText;
 }
