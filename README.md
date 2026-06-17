@@ -34,51 +34,58 @@
 
 ```
 doc-parser-agent/
-├── pom.xml                          # Maven 依赖配置
-├── README.md                        # 项目文档
-├── src/
-│   ├── main/
-│   │   ├── java/com/example/docparser/
-│   │   │   ├── DocParserApplication.java        # Spring Boot 启动类
-│   │   │   ├── config/
-│   │   │   │   ├── SecurityConfig.java          # Spring Security 配置
-│   │   │   │   ├── GlobalExceptionHandler.java  # 全局异常处理
-│   │   │   │   └── WebConfig.java              # CORS 及资源映射
-│   │   │   ├── controller/
-│   │   │   │   ├── AuthController.java          # 注册/登录接口
-│   │   │   │   └── DocumentController.java      # 文档上传/解析/下载
-│   │   │   ├── model/
-│   │   │   │   ├── entity/
-│   │   │   │   │   ├── User.java                # 用户实体
-│   │   │   │   │   └── Document.java            # 文档实体
-│   │   │   │   ├── dto/
-│   │   │   │   │   ├── RegisterRequest.java     # 注册请求
-│   │   │   │   │   ├── LoginRequest.java        # 登录请求
-│   │   │   │   │   ├── AuthResponse.java        # 认证响应
-│   │   │   │   │   ├── InterfaceInfo.java       # 接口基本信息
-│   │   │   │   │   ├── FieldDefinition.java     # 字段定义
-│   │   │   │   │   └── ParseResult.java         # 解析结果结构
-│   │   │   │   └── vo/
-│   │   │   │       └── ApiResponse.java         # 统一响应体
-│   │   │   ├── repository/
-│   │   │   │   ├── UserRepository.java          # 用户仓储
-│   │   │   │   └── DocumentRepository.java      # 文档仓储
-│   │   │   ├── security/
-│   │   │   │   ├── JwtAuthenticationFilter.java # JWT 过滤器
-│   │   │   │   └── JwtAuthenticationEntryPoint.java
-│   │   │   ├── service/
-│   │   │   │   ├── AuthService.java             # 认证服务
-│   │   │   │   ├── AiParserService.java         # AI 解析接口
-│   │   │   │   ├── AiParserServiceImpl.java     # AI 解析实现（核心）
-│   │   │   │   ├── DocumentParserService.java   # 文档解析服务接口
-│   │   │   │   ├── DocumentParserServiceImpl.java # 文档解析实现
-│   │   │   │   └── ExcelGeneratorService.java   # Excel 生成服务
-│   │   │   └── util/
-│   │   │       └── JwtUtil.java                 # JWT 工具类
-│   │   └── resources/
-│   │       └── application.yml                  # 配置文件
-│   └── test/java/com/example/docparser/
-│       └── DocParserApplicationTests.java
+├── frontend/                        # Vue 3 + Vite 前端
+│   └── ...
+├── backend/                         # Spring Boot 后端
+│   ├── pom.xml                      # Maven 依赖配置
+│   ├── src/
+│   │   ├── main/
+│   │   │   ├── java/com/example/docparser/
+│   │   │   │   ├── DocParserApplication.java        # Spring Boot 启动类
+│   │   │   │   ├── config/
+│   │   │   │   │   ├── SecurityConfig.java          # Spring Security 配置
+│   │   │   │   │   ├── GlobalExceptionHandler.java  # 全局异常处理
+│   │   │   │   │   └── WebConfig.java              # CORS 及资源映射
+│   │   │   │   ├── controller/
+│   │   │   │   │   ├── AuthController.java          # 注册/登录接口
+│   │   │   │   │   └── DocumentController.java      # 文档上传/解析/下载
+│   │   │   │   ├── model/
+│   │   │   │   │   ├── entity/
+│   │   │   │   │   │   ├── User.java                # 用户实体
+│   │   │   │   │   │   └── Document.java            # 文档实体
+│   │   │   │   │   ├── dto/
+│   │   │   │   │   │   ├── RegisterRequest.java     # 注册请求
+│   │   │   │   │   │   ├── LoginRequest.java        # 登录请求
+│   │   │   │   │   │   ├── AuthResponse.java        # 认证响应
+│   │   │   │   │   │   ├── InterfaceInfo.java       # 接口基本信息
+│   │   │   │   │   │   ├── FieldDefinition.java     # 字段定义
+│   │   │   │   │   │   └── ParseResult.java         # 解析结果结构
+│   │   │   │   │   └── vo/
+│   │   │   │   │       └── ApiResponse.java         # 统一响应体
+│   │   │   │   ├── repository/
+│   │   │   │   │   ├── UserRepository.java          # 用户仓储
+│   │   │   │   │   └── DocumentRepository.java      # 文档仓储
+│   │   │   │   ├── security/
+│   │   │   │   │   ├── JwtAuthenticationFilter.java # JWT 过滤器
+│   │   │   │   │   └── JwtAuthenticationEntryPoint.java
+│   │   │   │   ├── service/
+│   │   │   │   │   ├── AuthService.java             # 认证服务
+│   │   │   │   │   ├── AiParserService.java         # AI 解析接口
+│   │   │   │   │   ├── AiParserServiceImpl.java     # AI 解析实现（核心）
+│   │   │   │   │   ├── DocumentParserService.java   # 文档解析服务接口
+│   │   │   │   │   ├── DocumentParserServiceImpl.java # 文档解析实现
+│   │   │   │   │   └── ExcelGeneratorService.java   # Excel 生成服务
+│   │   │   │   └── util/
+│   │   │   │       └── JwtUtil.java                 # JWT 工具类
+│   │   │   └── resources/
+│   │   │       └── application.yml                  # 配置文件
+│   │   └── test/java/com/example/docparser/
+│   │       └── DocParserApplicationTests.java
+│   ├── uploads/                      # 上传文件存储
+│   └── exports/                      # Excel 导出文件
+├── README.md
+├── AGENTS.md
+└── .gitignore
 ```
 
 ## Excel 输出格式
@@ -200,7 +207,7 @@ Authorization: Bearer <token>
 
 ### 配置修改
 
-编辑 `application.yml`，设置你的 OpenAI API Key：
+编辑 `backend/src/main/resources/application.yml`，设置你的 OpenAI API Key：
 
 ```yaml
 langchain4j:
@@ -236,11 +243,11 @@ cd ..
 # 先构建前端
 cd frontend && npm install && npm run build && cd ..
 
-# 编译并启动后端
-mvn clean spring-boot:run
+# 进入后端目录编译并启动
+cd backend && mvn clean spring-boot:run
 
 # 或打包后启动（前端已构建的情况下）
-mvn clean package -DskipTests
+cd backend && mvn clean package -DskipTests
 java -jar target/doc-parser-agent-1.0.0.jar
 ```
 

@@ -20,7 +20,7 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: resolve(__dirname, '../src/main/resources/static'),
+    outDir: resolve(__dirname, '../backend/src/main/resources/static'),
     emptyOutDir: true,
     sourcemap: false,
   },
